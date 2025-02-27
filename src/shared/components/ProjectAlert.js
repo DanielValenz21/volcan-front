@@ -32,7 +32,7 @@ function ProjectAlert({ onClose }) {
 
           {showMore && (
             <div className="project-alert-more">
-              <p>Detalles adicionales: Lorem ipsum dolor sit amet, etc.</p>
+              <p>Detalles adicionales: se seguira trabajando en ventas</p>
             </div>
           )}
         </div>
