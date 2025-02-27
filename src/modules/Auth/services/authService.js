@@ -1,7 +1,4 @@
-// src/modules/Auth/services/authService.js
-
 export const login = async (credentials) => {
-  // Simulación de llamada a API
   return new Promise((resolve, reject) => {
     setTimeout(() => {
       if (credentials.email === 'admin@test.com' && credentials.password === 'admin') {

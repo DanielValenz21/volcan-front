@@ -1,6 +1,5 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
-// Ejemplo usando react-feather para íconos:
 import {
   ShoppingCart,
   Package,
@@ -15,19 +14,19 @@ import {
   DollarSign,
   BarChart2,
 } from "react-feather";
+import ProjectAlert from "../../../shared/components/ProjectAlert"; 
 
-/**
- * Componente principal del Dashboard.
- * Replica la estética del prototipo:
- * - Header con logo, buscador y notificaciones
- * - Sidebar con opciones
- * - Tarjetas de indicadores
- * - Ventas recientes
- * - Acciones rápidas
- * - Notificaciones
- */
 const Dashboard = () => {
-  // Datos de ejemplo para "Ventas Recientes"
+  const [showAlert, setShowAlert] = useState(false);
+
+  const handleShowAlert = () => {
+    setShowAlert(true);
+  };
+
+  const handleCloseAlert = () => {
+    setShowAlert(false);
+  };
+
   const ventasRecientes = [
     {
       id: "VNT-2023-0542",
@@ -151,6 +150,9 @@ const Dashboard = () => {
 
         {/* SECCIÓN PRINCIPAL DEL DASHBOARD */}
         <main className="flex-1 overflow-auto p-4 md:p-6">
+          {/* Renderiza la alerta */}
+          {showAlert && <ProjectAlert onClose={handleCloseAlert} />}
+          
           {/* Tarjetas de indicadores */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-lg border bg-white p-4 shadow-sm">
@@ -234,19 +236,31 @@ const Dashboard = () => {
               <h3 className="text-base font-semibold">Acciones Rápidas</h3>
               <p className="text-sm text-gray-500">Accede rápidamente a las funciones más utilizadas</p>
               <div className="mt-4 space-y-3">
-                <button className="flex w-full items-center gap-2 rounded-md bg-primary px-4 py-2 text-white hover:bg-primary/90">
+                <button
+                  onClick={handleShowAlert}
+                  className="flex w-full items-center gap-2 rounded-md bg-primary px-4 py-2 text-white hover:bg-primary/90"
+                >
                   <ShoppingCart className="h-4 w-4" />
                   Nueva Venta
                 </button>
-                <button className="flex w-full items-center gap-2 rounded-md border border-secondary px-4 py-2 text-secondary hover:bg-muted">
+                <button
+                  onClick={handleShowAlert}
+                  className="flex w-full items-center gap-2 rounded-md border border-secondary px-4 py-2 text-secondary hover:bg-muted"
+                >
                   <CreditCard className="h-4 w-4" />
                   Registrar Pago
                 </button>
-                <button className="flex w-full items-center gap-2 rounded-md border border-secondary px-4 py-2 text-secondary hover:bg-muted">
+                <button
+                  onClick={handleShowAlert}
+                  className="flex w-full items-center gap-2 rounded-md border border-secondary px-4 py-2 text-secondary hover:bg-muted"
+                >
                   <Package className="h-4 w-4" />
                   Consultar Inventario
                 </button>
-                <button className="flex w-full items-center gap-2 rounded-md border border-secondary px-4 py-2 text-secondary hover:bg-muted">
+                <button
+                  onClick={handleShowAlert}
+                  className="flex w-full items-center gap-2 rounded-md border border-secondary px-4 py-2 text-secondary hover:bg-muted"
+                >
                   <Truck className="h-4 w-4" />
                   Registrar Rastra
                 </button>
