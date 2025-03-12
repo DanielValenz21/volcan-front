@@ -25,7 +25,8 @@ const Login = () => {
 
     try {
       // Llamada al servicio de autenticación
-      const response = await login(credentials);
+      const response = await login(credentials); // credentials = { email, password }
+
       if (response.token) {
         // Guarda el token según tu flujo (por ejemplo, en localStorage)
         localStorage.setItem('token', response.token);
@@ -47,16 +48,16 @@ const Login = () => {
           <p className="login-subtitle">Ingresa a tu cuenta para continuar</p>
           <form onSubmit={handleSubmit} className="login-form">
             <label className="login-label" htmlFor="email">
-              Email
+              Usuario
             </label>
             <input
-              type="email"
+              type="text" // se cambió de email a text para eliminar la validación
               id="email"
               name="email"
               value={credentials.email}
               onChange={handleChange}
               className="login-input"
-              placeholder="tu@email.com"
+              placeholder="Ingresa tu usuario" // se modificó el placeholder
               required
             />
             <label className="login-label" htmlFor="password">
