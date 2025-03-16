@@ -4,34 +4,36 @@ import SalesList from "./SalesList";
 import SalesCreate from "./SalesCreate";
 
 function VentasPage() {
-  // Tab local: "list" o "create"
   const [activeTab, setActiveTab] = useState("list");
 
   return (
     <div className="container mx-auto py-6">
       <h1 className="text-3xl font-bold text-[#111827] mb-6">Módulo de Ventas</h1>
 
-      {/* Botones para cambiar de Tab */}
-      <div className="mb-6 flex gap-2">
+      {/* Botones tipo switch para pestañas */}
+      <div className="mb-6 flex rounded-md border overflow-hidden">
         <button
           onClick={() => setActiveTab("list")}
-          className={`px-4 py-2 rounded-md text-sm font-medium border ${
-            activeTab === "list" ? "bg-[#3B82F6] text-white" : "bg-white text-[#111827]"
+          className={`flex-1 px-6 py-3 text-lg font-medium transition-colors ${
+            activeTab === "list"
+              ? "bg-[#3B82F6] text-white"
+              : "bg-white text-[#111827] hover:bg-gray-100"
           }`}
         >
           Listar Ventas
         </button>
         <button
           onClick={() => setActiveTab("create")}
-          className={`px-4 py-2 rounded-md text-sm font-medium border ${
-            activeTab === "create" ? "bg-[#3B82F6] text-white" : "bg-white text-[#111827]"
+          className={`flex-1 px-6 py-3 text-lg font-medium transition-colors ${
+            activeTab === "create"
+              ? "bg-[#3B82F6] text-white"
+              : "bg-white text-[#111827] hover:bg-gray-100"
           }`}
         >
           Nueva Venta
         </button>
       </div>
 
-      {/* Render condicional */}
       {activeTab === "list" ? <SalesList /> : <SalesCreate />}
     </div>
   );
