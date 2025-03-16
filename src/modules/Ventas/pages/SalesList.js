@@ -163,12 +163,11 @@ function SalesList() {
                         variant="ghost"
                         onClick={(e) => {
                           e.stopPropagation();
-                          // Toggle del menú: si ya está activo se desactiva
                           setActiveSaleId(activeSaleId === sale.id ? null : sale.id);
                         }}
-                        className="px-2 py-1"
+                        className="px-2 py-1 flex items-center gap-2" // Removed text "Acción", kept only the icon
                       >
-                        Acción
+                        <img src="/abajo.png" alt="Acción" className="h-6 w-6 filter brightness-0" />
                       </Button>
                       {activeSaleId === sale.id && (
                         <div className="absolute right-0 top-full mt-2 z-10 p-2 bg-white border rounded shadow">
