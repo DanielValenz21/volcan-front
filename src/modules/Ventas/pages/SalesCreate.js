@@ -231,19 +231,21 @@ function SalesCreate() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="cliente">Cliente</Label>
-                  <Select value={clienteSeleccionado} onValueChange={setClienteSeleccionado}>
-                    <SelectTrigger id="cliente" className="border-[#A5B4FC]">
-                      <SelectValue placeholder="Seleccionar cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clientesData.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.nombre} ({c.tipoCliente})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Cliente</Label>
+                  <div className="relative">
+                    <Select value={clienteSeleccionado} onValueChange={setClienteSeleccionado}>
+                      <SelectTrigger id="cliente" className="h-10 px-3 py-2 rounded-md border border-[#A5B4FC] bg-[#F3F4F6]">
+                        <SelectValue placeholder="Seleccionar cliente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clientesData.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.nombre} ({c.tipoCliente})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 {tipoCliente && (
