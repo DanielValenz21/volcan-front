@@ -50,8 +50,6 @@ function SalesList() {
         return "bg-yellow-100 text-yellow-800";
       case "Pagado":
         return "bg-green-100 text-green-800";
-      case "Entregado":
-        return "bg-blue-100 text-blue-800";
       case "Cancelado":
         return "bg-red-100 text-red-800";
       default:
@@ -66,7 +64,7 @@ function SalesList() {
 
     const matchesSearch =
       sale.IdVenta?.toString().includes(searchTerm) ||
-      (sale.IdCliente?.toString() || "").includes(searchTerm); // o lo que prefieras filtrar
+      (sale.NombreCliente?.toString() || "").toLowerCase().includes(searchTerm.toLowerCase()); // o lo que prefieras filtrar
     const matchesStatus = statusFilter === "todos" || sale.Estado === statusFilter;
     const matchesDate = !date || saleDate.toDateString() === date.toDateString();
 
@@ -117,7 +115,6 @@ function SalesList() {
                 <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="Pendiente">Pendiente</SelectItem>
                 <SelectItem value="Pagado">Pagado</SelectItem>
-                <SelectItem value="Entregado">Entregado</SelectItem>
                 <SelectItem value="Cancelado">Cancelado</SelectItem>
               </SelectContent>
             </Select>
@@ -133,8 +130,7 @@ function SalesList() {
                     setCalendarOpen(true);
                   }}
                 >
-                  <img src="/fecha.png" alt="Calendario" className="h-4 w-4 text-gray-500" />
-                  <span>Fecha</span>
+                  Fecha
                 </Button>
               </PopoverTrigger>
               {calendarOpen && (
@@ -178,7 +174,7 @@ function SalesList() {
                   <TableRow key={sale.IdVenta} className="hover:bg-[#F3F4F6]">
                     <TableCell className="font-medium">{sale.IdVenta}</TableCell>
                     <TableCell>{format(new Date(sale.FechaVenta), "dd/MM/yyyy HH:mm")}</TableCell>
-                    <TableCell>{sale.IdCliente}</TableCell>
+                    <TableCell>{sale.NombreCliente}</TableCell>
                     <TableCell className="text-right">${sale.Total?.toFixed(2)}</TableCell>
                     <TableCell>
                       <Badge className={`font-normal ${getStatusColor(sale.Estado)}`}>
@@ -189,12 +185,11 @@ function SalesList() {
                       {/* Botones de acciones */}
                       <div className="flex gap-2 justify-center">
                         <Button variant="ghost" onClick={() => handleViewDetail(sale.IdVenta)}>
-                          <img src="/ver.png" alt="Ver" className="h-4 w-4" />
+                          <img src="/ver.png" alt="Ver" className="h-4 w-4 brightness-75" />
                         </Button>
-                        {/* Solo permitir editar si está Pendiente */}
                         {sale.Estado === "Pendiente" && (
                           <Button variant="ghost" onClick={() => handleEdit(sale.IdVenta)}>
-                            <img src="/editar.png" alt="Editar" className="h-4 w-4" />
+                            <img src="/editar.png" alt="Editar" className="h-4 w-4 brightness-75" />
                           </Button>
                         )}
                       </div>
@@ -204,7 +199,7 @@ function SalesList() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={6} className="h-24 text-center">
-                    No se encontraron resultados.
+                    No se encontraron resultados. 
                   </TableCell>
                 </TableRow>
               )}
