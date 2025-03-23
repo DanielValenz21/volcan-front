@@ -28,10 +28,8 @@ const Login = () => {
       const response = await login(credentials); // credentials = { email, password }
 
       if (response.token) {
-        // Guarda el token según tu flujo (por ejemplo, en localStorage)
         localStorage.setItem('token', response.token);
-        // Redirige a la siguiente vista (por ejemplo, /dashboard)
-        navigate('/dashboard');
+        navigate('/dashboard'); // o lo que quieras
       }
     } catch (err) {
       setError('Credenciales inválidas o error en el servidor');

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
+import axios from "axios";
 
 import { Button } from "../../../shared/components/Button";
 import { Input } from "../../../shared/components/Input";
@@ -11,81 +12,75 @@ import { Badge } from "../../../shared/components/Badge";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../shared/components/Popover";
 import { Card, CardContent } from "../../../shared/components/Card";
 import { Calendar } from "../../../shared/components/Calendar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../../../shared/components/DropdownMenu";
-
-// Datos de ejemplo
-const salesData = [
-  { id: "VNT-001", fecha: new Date(2023, 6, 15), cliente: "Ferretería El Martillo", total: 1250.75, estado: "Pendiente" },
-  { id: "VNT-002", fecha: new Date(2023, 6, 16), cliente: "Constructora Edificar", total: 3450.0, estado: "Pagado" },
-  { id: "VNT-003", fecha: new Date(2023, 6, 17), cliente: "Juan Pérez", total: 450.25, estado: "Entregado" },
-  { id: "VNT-004", fecha: new Date(2023, 6, 18), cliente: "Ferretería La Llave", total: 2100.5, estado: "Pendiente" },
-  { id: "VNT-005", fecha: new Date(2023, 6, 19), cliente: "Constructora Moderna", total: 5670.0, estado: "Pagado" },
-];
-
-// Función para asignar color al estado
-const getStatusColor = (status) => {
-  switch (status) {
-    case "Pendiente":
-      return "bg-yellow-100 text-yellow-800";
-    case "Pagado":
-      return "bg-green-100 text-green-800";
-    case "Entregado":
-      return "bg-blue-100 text-blue-800";
-    default:
-      return "bg-gray-100 text-gray-800";
-  }
-};
 
 function SalesList() {
   const navigate = useNavigate();
+
+  // Datos que vienen de la DB
+  const [sales, setSales] = useState([]);
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [date, setDate] = useState(null);
 
-  // Para menú de acciones
-  const [activeSaleId, setActiveSaleId] = useState(null);
-
-  // Para controlar la apertura/cierre del popover de calendario
+  // Para controlar popover de calendario
   const [calendarOpen, setCalendarOpen] = useState(false);
 
-  // Cerrar menú de acciones al hacer clic fuera
+  // Cargar ventas desde la API
   useEffect(() => {
-    function handleDocumentClick() {
-      setActiveSaleId(null);
-    }
-    document.addEventListener("click", handleDocumentClick);
-    return () => document.removeEventListener("click", handleDocumentClick);
+    axios
+      .get("http://localhost:3001/api/ventas", {
+        headers: {
+          Authorization: "Bearer " + localStorage.getItem("token"),
+        },
+      })
+      .then((resp) => {
+        setSales(resp.data); // resp.data debe ser un array de Ventas
+      })
+      .catch((error) => {
+        console.error("Error al obtener ventas:", error);
+      });
   }, []);
 
-  // Filtra las ventas
-  const filteredSales = salesData.filter((sale) => {
+  // Función para asignar color al estado
+  const getStatusColor = (status) => {
+    switch (status) {
+      case "Pendiente":
+        return "bg-yellow-100 text-yellow-800";
+      case "Pagado":
+        return "bg-green-100 text-green-800";
+      case "Entregado":
+        return "bg-blue-100 text-blue-800";
+      case "Cancelado":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  // Filtrar
+  const filteredSales = sales.filter((sale) => {
+    // sale.FechaVenta es un string o Date? Asumimos string convertible
+    const saleDate = new Date(sale.FechaVenta);
+
     const matchesSearch =
-      sale.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sale.id.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "todos" || sale.estado === statusFilter;
-    const matchesDate =
-      !date || format(sale.fecha, "yyyy-MM-dd") === format(date, "yyyy-MM-dd");
+      sale.IdVenta?.toString().includes(searchTerm) ||
+      (sale.IdCliente?.toString() || "").includes(searchTerm); // o lo que prefieras filtrar
+    const matchesStatus = statusFilter === "todos" || sale.Estado === statusFilter;
+    const matchesDate = !date || saleDate.toDateString() === date.toDateString();
+
     return matchesSearch && matchesStatus && matchesDate;
   });
 
-  // Acciones
-  const handleViewDetail = (id, e) => {
-    e.stopPropagation();
+  const handleViewDetail = (id) => {
     navigate(`/ventas/detalle/${id}`);
   };
-  const handleEdit = (id, e) => {
-    e.stopPropagation();
+
+  const handleEdit = (id) => {
     navigate(`/ventas/editar/${id}`);
   };
 
-  // Limpiar filtros
   const clearFilters = () => {
     setSearchTerm("");
     setStatusFilter("todos");
@@ -105,7 +100,7 @@ function SalesList() {
               className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-700"
             />
             <Input
-              placeholder="Buscar por cliente o ID de venta..."
+              placeholder="Buscar por ID de venta o cliente..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-8 border-[#A5B4FC] focus:border-[#3B82F6]"
@@ -123,6 +118,7 @@ function SalesList() {
                 <SelectItem value="Pendiente">Pendiente</SelectItem>
                 <SelectItem value="Pagado">Pagado</SelectItem>
                 <SelectItem value="Entregado">Entregado</SelectItem>
+                <SelectItem value="Cancelado">Cancelado</SelectItem>
               </SelectContent>
             </Select>
 
@@ -147,14 +143,14 @@ function SalesList() {
                     selected={date}
                     onSelect={(sel) => {
                       setDate(sel);
-                      setCalendarOpen(false); // Cierra el popover al elegir fecha
+                      setCalendarOpen(false);
                     }}
                   />
                 </PopoverContent>
               )}
             </Popover>
 
-            {/* Botón Limpiar si hay filtros aplicados */}
+            {/* Botón Limpiar */}
             {(searchTerm || statusFilter !== "todos" || date) && (
               <Button variant="ghost" onClick={clearFilters} className="text-[#3B82F6]">
                 Limpiar filtros
@@ -179,50 +175,29 @@ function SalesList() {
             <TableBody>
               {filteredSales.length > 0 ? (
                 filteredSales.map((sale) => (
-                  <TableRow key={sale.id} className="hover:bg-[#F3F4F6] relative">
-                    <TableCell className="font-medium">{sale.id}</TableCell>
-                    <TableCell>{format(sale.fecha, "dd/MM/yyyy")}</TableCell>
-                    <TableCell>{sale.cliente}</TableCell>
-                    <TableCell className="text-right">${sale.total.toFixed(2)}</TableCell>
+                  <TableRow key={sale.IdVenta} className="hover:bg-[#F3F4F6]">
+                    <TableCell className="font-medium">{sale.IdVenta}</TableCell>
+                    <TableCell>{format(new Date(sale.FechaVenta), "dd/MM/yyyy HH:mm")}</TableCell>
+                    <TableCell>{sale.IdCliente}</TableCell>
+                    <TableCell className="text-right">${sale.Total?.toFixed(2)}</TableCell>
                     <TableCell>
-                      <Badge className={`font-normal ${getStatusColor(sale.estado)}`}>
-                        {sale.estado}
+                      <Badge className={`font-normal ${getStatusColor(sale.Estado)}`}>
+                        {sale.Estado}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Button
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveSaleId(activeSaleId === sale.id ? null : sale.id);
-                        }}
-                        className="flex items-center justify-center"
-                      >
-                        <img src="/abajo.png" alt="Acción" className="h-6 w-6" />
-                      </Button>
-                      {/* Menú de acciones */}
-                      {activeSaleId === sale.id && (
-                        <div className="absolute right-0 top-full mt-2 z-10 p-2 bg-white border rounded shadow">
-                          <Button
-                            variant="ghost"
-                            onClick={(e) => handleViewDetail(sale.id, e)}
-                            className="flex items-center gap-2"
-                          >
-                            <img src="/ver.png" alt="Ver" className="h-4 w-4" />
-                            Ver detalle
+                      {/* Botones de acciones */}
+                      <div className="flex gap-2 justify-center">
+                        <Button variant="ghost" onClick={() => handleViewDetail(sale.IdVenta)}>
+                          <img src="/ver.png" alt="Ver" className="h-4 w-4" />
+                        </Button>
+                        {/* Solo permitir editar si está Pendiente */}
+                        {sale.Estado === "Pendiente" && (
+                          <Button variant="ghost" onClick={() => handleEdit(sale.IdVenta)}>
+                            <img src="/editar.png" alt="Editar" className="h-4 w-4" />
                           </Button>
-                          {sale.estado === "Pendiente" && (
-                            <Button
-                              variant="ghost"
-                              onClick={(e) => handleEdit(sale.id, e)}
-                              className="flex items-center gap-2 mt-2"
-                            >
-                              <img src="/editar.png" alt="Editar" className="h-4 w-4" />
-                              Editar
-                            </Button>
-                          )}
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

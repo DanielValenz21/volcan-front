@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Trash, Plus, Search as SearchIcon, AlertCircle } from "react-feather";
+import axios from "axios";
 
 import { Button } from "../../../shared/components/Button";
 import { Input } from "../../../shared/components/Input";
@@ -21,92 +22,143 @@ import { Label } from "../../../shared/components/Label";
 import { Alert, AlertTitle, AlertDescription } from "../../../shared/components/Alert";
 import { Separator } from "../../../shared/components/Separator";
 
-// Datos ejemplo
-const clientesData = [
-  { id: "CLI-001", nombre: "Ferretería El Martillo", tipoCliente: "Ferretería" },
-  { id: "CLI-002", nombre: "Constructora Edificar", tipoCliente: "Constructora" },
-  { id: "CLI-003", nombre: "Juan Pérez", tipoCliente: "CF" },
-];
-
-const productosData = [
-  { id: "PRD-001", nombre: "Cemento Portland 42.5kg", precioBase: 85.5, stock: 150 },
-  { id: "PRD-002", nombre: "Varilla de acero 12mm x 6m", precioBase: 45.75, stock: 200 },
-  { id: "PRD-003", nombre: "Bloque de concreto 15x20x40cm", precioBase: 12.25, stock: 500 },
-];
-
-// Precios especiales
-const preciosEspeciales = [
-  { idProducto: "PRD-001", tipoCliente: "Ferretería", precio: 80.0 },
-  { idProducto: "PRD-001", tipoCliente: "Constructora", precio: 75.5 },
-];
-
 function SalesCreate() {
   const navigate = useNavigate();
-  const { id } = useParams(); // si venimos de "/ventas/editar/:id"
-  // States
+  const { id } = useParams(); // si venimos de "/ventas/editar/:id", es edición
+
+  // ESTADOS para la info de clientes y productos
+  const [clientes, setClientes] = useState([]);
+  const [productos, setProductos] = useState([]);
+
+  // ESTADOS para la venta
   const [clienteSeleccionado, setClienteSeleccionado] = useState("");
   const [tipoCliente, setTipoCliente] = useState("");
   const [detalles, setDetalles] = useState([]);
   const [subtotal, setSubtotal] = useState(0);
   const [descuento, setDescuento] = useState(0);
   const [total, setTotal] = useState(0);
+
+  // Para buscar productos en el modal
   const [searchProducto, setSearchProducto] = useState("");
-  const [productosFiltrados, setProductosFiltrados] = useState(productosData);
+  const [productosFiltrados, setProductosFiltrados] = useState([]);
   const [productoSeleccionado, setProductoSeleccionado] = useState(null);
   const [cantidad, setCantidad] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [showProductList, setShowProductList] = useState(false);
+
+  // Mensajes de error/exito
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
-  // Efecto para "editar"
+  // CARGAR CLIENTES Y PRODUCTOS
+  useEffect(() => {
+    // 1) Cargar clientes
+    axios
+      .get("http://localhost:3001/api/clientes", {
+        headers: { Authorization: "Bearer " + localStorage.getItem("token") },
+      })
+      .then((resp) => {
+        setClientes(resp.data);
+      })
+      .catch((err) => console.error(err));
+
+    // 2) Cargar productos
+    axios
+      .get("http://localhost:3001/api/productos", {
+        headers: { Authorization: "Bearer " + localStorage.getItem("token") },
+      })
+      .then((resp) => {
+        setProductos(resp.data);
+      })
+      .catch((err) => console.error(err));
+  }, []);
+
+  // MODO EDICIÓN: si "id" existe, cargamos la venta
   useEffect(() => {
     if (id) {
-      // supuestamente buscar venta en el backend
-      console.log("Editando venta con ID:", id);
+      axios
+        .get(`http://localhost:3001/api/ventas/${id}`, {
+          headers: { Authorization: "Bearer " + localStorage.getItem("token") },
+        })
+        .then((resp) => {
+          // resp.data: { venta, detalles }
+          const ventaData = resp.data.venta;
+          const detallesData = resp.data.detalles;
+
+          setClienteSeleccionado(ventaData.IdCliente.toString());
+          // No tenemos el TipoCliente de una sola, si quieres, podrías hacer otra llamada
+          // a /api/clientes/<IdCliente> para saber su tipo. De momento, lo dejamos en ""
+          setTipoCliente("");
+
+          // Ajustar "detalles" para la tabla
+          const newDetalles = detallesData.map((d) => {
+            // Calcula subtotal
+            const precioEfectivo = d.PrecioUnitario * (1 - d.PorcentajeDescuento / 100);
+            const sub = precioEfectivo * d.Cantidad;
+            return {
+              idProducto: d.IdProducto, // usaremos "idProducto" como en create
+              nombre: d.NombreProducto || "Producto",
+              cantidad: parseFloat(d.Cantidad),
+              precioUnitario: parseFloat(d.PrecioUnitario),
+              porcentajeDescuento: parseFloat(d.PorcentajeDescuento),
+              subtotal: sub,
+            };
+          });
+
+          setDetalles(newDetalles);
+          setDescuento(parseFloat(ventaData.Descuento));
+          // Se recalculará en un useEffect posterior
+        })
+        .catch((error) => {
+          console.error("Error al cargar venta:", error);
+        });
     }
   }, [id]);
 
-  // Actualizar tipo de cliente si se selecciona uno
+  // FILTRO de productos
+  useEffect(() => {
+    if (!searchProducto) {
+      setProductosFiltrados(productos);
+    } else {
+      const filtered = productos.filter(
+        (p) =>
+          p.NombreProducto.toLowerCase().includes(searchProducto.toLowerCase()) ||
+          p.IdProducto.toString().includes(searchProducto.toLowerCase())
+      );
+      setProductosFiltrados(filtered);
+    }
+  }, [searchProducto, productos]);
+
+  // Cuando se selecciona un cliente
   useEffect(() => {
     if (clienteSeleccionado) {
-      const c = clientesData.find((cl) => cl.id === clienteSeleccionado);
-      if (c) setTipoCliente(c.tipoCliente);
+      // Busca el objeto del cliente
+      const c = clientes.find(
+        (cl) => cl.IdCliente.toString() === clienteSeleccionado
+      );
+      if (c) {
+        setTipoCliente(c.TipoCliente || "");
+      }
     } else {
       setTipoCliente("");
     }
-  }, [clienteSeleccionado]);
+  }, [clienteSeleccionado, clientes]);
 
-  // Calcular subtotal/total cuando cambien detalles/descuento
+  // RECALCULAR SUBTOTAL Y TOTAL
   useEffect(() => {
     const newSubtotal = detalles.reduce((sum, item) => sum + item.subtotal, 0);
     setSubtotal(newSubtotal);
     setTotal(newSubtotal - descuento);
   }, [detalles, descuento]);
 
-  // Filtrar productos
-  useEffect(() => {
-    if (searchProducto) {
-      const filtered = productosData.filter(
-        (p) =>
-          p.nombre.toLowerCase().includes(searchProducto.toLowerCase()) ||
-          p.id.toLowerCase().includes(searchProducto.toLowerCase())
-      );
-      setProductosFiltrados(filtered);
-    } else {
-      setProductosFiltrados(productosData);
-    }
-  }, [searchProducto]);
-
-  // Obtener precio
-  const getPrecioProducto = (idProducto) => {
-    if (!tipoCliente) return 0;
-    const precioEsp = preciosEspeciales.find((x) => x.idProducto === idProducto && x.tipoCliente === tipoCliente);
-    if (precioEsp) return precioEsp.precio;
-    const prod = productosData.find((p) => p.id === idProducto);
-    return prod ? prod.precioBase : 0;
+  // OBTENER PRECIO (sólo para mostrar en la tabla de selección, si quisieras)
+  // Para simplificar, devolvemos p.PrecioBase
+  const getPrecioProducto = (prod) => {
+    // Podrías hacer la lógica de "precio especial" si la tuvieras
+    return prod.PrecioBase;
   };
 
-  // Agregar producto
+  // AGREGAR PRODUCTO
   const agregarProducto = () => {
     if (!productoSeleccionado) {
       setErrorMessage("Debe seleccionar un producto");
@@ -117,33 +169,28 @@ function SalesCreate() {
       return;
     }
 
-    const prod = productosData.find((p) => p.id === productoSeleccionado.id);
-    if (!prod) {
-      setErrorMessage("Producto no encontrado");
-      return;
-    }
-    if (cantidad > prod.stock) {
-      setErrorMessage(`Stock insuficiente. Disponible: ${prod.stock}`);
-      return;
-    }
+    // Revisar si ya existe en la tabla
+    const idx = detalles.findIndex((d) => d.idProducto === productoSeleccionado.IdProducto);
+    const precioUnitario = getPrecioProducto(productoSeleccionado);
 
-    // Ver si ya existe en la tabla
-    const idx = detalles.findIndex((d) => d.idProducto === prod.id);
     if (idx >= 0) {
       // Actualizar
       const newDet = [...detalles];
       newDet[idx].cantidad += cantidad;
-      newDet[idx].subtotal = newDet[idx].cantidad * newDet[idx].precioUnitario;
+      newDet[idx].subtotal =
+        newDet[idx].cantidad *
+        (newDet[idx].precioUnitario * (1 - (newDet[idx].porcentajeDescuento || 0) / 100));
       setDetalles(newDet);
     } else {
       // Nuevo
-      const precioUnitario = getPrecioProducto(prod.id);
+      const subtotalLinea = cantidad * precioUnitario;
       const nuevoDetalle = {
-        idProducto: prod.id,
-        nombre: prod.nombre,
+        idProducto: productoSeleccionado.IdProducto,
+        nombre: productoSeleccionado.NombreProducto,
         cantidad,
         precioUnitario,
-        subtotal: cantidad * precioUnitario,
+        porcentajeDescuento: 0, // si no usas descuento por línea
+        subtotal: subtotalLinea,
       };
       setDetalles([...detalles, nuevoDetalle]);
     }
@@ -156,30 +203,31 @@ function SalesCreate() {
     setErrorMessage("");
   };
 
-  // Eliminar producto
+  // ELIMINAR PRODUCTO
   const eliminarProducto = (index) => {
     const newDet = [...detalles];
     newDet.splice(index, 1);
     setDetalles(newDet);
   };
 
-  // Actualizar cantidad
+  // ACTUALIZAR CANTIDAD
   const actualizarCantidad = (index, nuevaCantidad) => {
     if (nuevaCantidad <= 0) return;
-    const prod = productosData.find((p) => p.id === detalles[index].idProducto);
-    if (prod && nuevaCantidad > prod.stock) {
-      setErrorMessage(`Stock insuficiente para ${prod.nombre}. Disponible: ${prod.stock}`);
-      return;
-    }
     const newDet = [...detalles];
     newDet[index].cantidad = nuevaCantidad;
-    newDet[index].subtotal = nuevaCantidad * newDet[index].precioUnitario;
+    // Recalcular subtotal
+    const descLinea = newDet[index].porcentajeDescuento || 0;
+    const precioEfectivo = newDet[index].precioUnitario * (1 - descLinea / 100);
+    newDet[index].subtotal = precioEfectivo * nuevaCantidad;
     setDetalles(newDet);
     setErrorMessage("");
   };
 
-  // Guardar
-  const guardarVenta = () => {
+  // GUARDAR/ACTUALIZAR VENTA
+  const guardarVenta = async () => {
+    setErrorMessage("");
+    setSuccessMessage("");
+
     if (!clienteSeleccionado) {
       setErrorMessage("Debe seleccionar un cliente");
       return;
@@ -189,18 +237,58 @@ function SalesCreate() {
       return;
     }
 
-    console.log("Guardando venta...", { clienteSeleccionado, detalles, total });
-    setSuccessMessage("Venta guardada correctamente");
+    try {
+      // Suponiendo un userId = 2 o lo que tengas en tu token
+      // Podrías parsear tu token, pero lo haré simple
+      const userId = 2;
 
-    // Reset
-    setTimeout(() => {
-      setClienteSeleccionado("");
-      setTipoCliente("");
-      setDetalles([]);
-      setDescuento(0);
-      setSuccessMessage("");
-      if (id) navigate("/ventas");
-    }, 1500);
+      // Armar Detalles en el formato que el back espera
+      // (IdProducto, Cantidad, PorcentajeDescuento)
+      const detallesForApi = detalles.map((d) => ({
+        IdProducto: d.idProducto,
+        Cantidad: d.cantidad,
+        PorcentajeDescuento: d.porcentajeDescuento || 0,
+      }));
+
+      const payload = {
+        IdCliente: parseInt(clienteSeleccionado),
+        CreadoPor: userId,
+        Descuento: parseFloat(descuento),
+        Detalles: detallesForApi,
+      };
+
+      if (id) {
+        // Modo edición: PUT /api/ventas/:id (sólo si la venta está Pendiente)
+        const response = await axios.put(
+          `http://localhost:3001/api/ventas/${id}`,
+          payload,
+          {
+            headers: {
+              Authorization: "Bearer " + localStorage.getItem("token"),
+            },
+          }
+        );
+        console.log("Venta actualizada", response.data);
+        setSuccessMessage("Venta actualizada exitosamente");
+      } else {
+        // Modo creación: POST /api/ventas
+        const response = await axios.post("http://localhost:3001/api/ventas", payload, {
+          headers: {
+            Authorization: "Bearer " + localStorage.getItem("token"),
+          },
+        });
+        console.log("Venta creada", response.data);
+        setSuccessMessage("Venta guardada exitosamente");
+      }
+
+      // Regresar a /ventas tras un breve delay
+      setTimeout(() => {
+        navigate("/ventas");
+      }, 1200);
+    } catch (error) {
+      console.error("Error al crear/actualizar venta:", error);
+      setErrorMessage("Ocurrió un error al guardar la venta");
+    }
   };
 
   return (
@@ -233,14 +321,20 @@ function SalesCreate() {
                 <div className="space-y-2">
                   <Label>Cliente</Label>
                   <div className="relative">
-                    <Select value={clienteSeleccionado} onValueChange={setClienteSeleccionado}>
-                      <SelectTrigger id="cliente" className="h-10 px-3 py-2 rounded-md border border-[#A5B4FC] bg-[#F3F4F6]">
+                    <Select
+                      value={clienteSeleccionado}
+                      onValueChange={(val) => setClienteSeleccionado(val)}
+                    >
+                      <SelectTrigger
+                        id="cliente"
+                        className="h-10 px-3 py-2 rounded-md border border-[#A5B4FC] bg-[#F3F4F6]"
+                      >
                         <SelectValue placeholder="Seleccionar cliente" />
                       </SelectTrigger>
                       <SelectContent>
-                        {clientesData.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.nombre} ({c.tipoCliente})
+                        {clientes.map((c) => (
+                          <SelectItem key={c.IdCliente} value={c.IdCliente.toString()}>
+                            {c.NombreCliente} ({c.TipoCliente})
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -267,101 +361,111 @@ function SalesCreate() {
                 <h2 className="text-xl font-semibold text-[#1E3A8A]">
                   {id ? "Productos de la Venta" : "Productos"}
                 </h2>
+                <div className="flex gap-2">
+                  {/* Nuevo botón "agregar productoi" */}
+                  <Button
+                    onClick={() => setShowProductList(!showProductList)}
+                    className="bg-[#3B82F6] hover:bg-[#1E3A8A]"
+                  >
+                    agregar productoi
+                  </Button>
+                  <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="bg-[#3B82F6] hover:bg-[#1E3A8A]">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Agregar Producto
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Agregar Producto</DialogTitle>
+                        <DialogDescription>
+                          Busque y seleccione un producto para agregar a la venta.
+                        </DialogDescription>
+                      </DialogHeader>
 
-                <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="bg-[#3B82F6] hover:bg-[#1E3A8A]">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Agregar Producto
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Agregar Producto</DialogTitle>
-                      <DialogDescription>
-                        Busque y seleccione un producto para agregar a la venta.
-                      </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-4 py-4">
-                      <div className="relative">
-                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
-                        <Input
-                          placeholder="Buscar producto..."
-                          value={searchProducto}
-                          onChange={(e) => setSearchProducto(e.target.value)}
-                          className="pl-10 border-[#A5B4FC]"
-                        />
-                      </div>
-
-                      <div className="max-h-60 overflow-y-auto border rounded-md">
-                        <Table>
-                          <TableHeader className="bg-[#F3F4F6] sticky top-0">
-                            <TableRow>
-                              <TableHead className="text-[#111827] w-[100px]">ID</TableHead>
-                              <TableHead className="text-[#111827]">Nombre</TableHead>
-                              <TableHead className="text-[#111827] text-right">Precio</TableHead>
-                              <TableHead className="text-[#111827] text-right">Stock</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {productosFiltrados.length > 0 ? (
-                              productosFiltrados.map((prod) => (
-                                <TableRow
-                                  key={prod.id}
-                                  className={`cursor-pointer hover:bg-[#F3F4F6] ${
-                                    productoSeleccionado?.id === prod.id ? "bg-[#A5B4FC]/20" : ""
-                                  }`}
-                                  onClick={() => setProductoSeleccionado(prod)}
-                                >
-                                  <TableCell>{prod.id}</TableCell>
-                                  <TableCell>{prod.nombre}</TableCell>
-                                  <TableCell className="text-right">
-                                    ${tipoCliente ? getPrecioProducto(prod.id).toFixed(2) : prod.precioBase.toFixed(2)}
-                                  </TableCell>
-                                  <TableCell className="text-right">{prod.stock}</TableCell>
-                                </TableRow>
-                              ))
-                            ) : (
-                              <TableRow>
-                                <TableCell colSpan={4} className="h-24 text-center">
-                                  No se encontraron productos.
-                                </TableCell>
-                              </TableRow>
-                            )}
-                          </TableBody>
-                        </Table>
-                      </div>
-
-                      {productoSeleccionado && (
-                        <div className="space-y-2">
-                          <Label htmlFor="cantidad">Cantidad</Label>
+                      <div className="space-y-4 py-4">
+                        <div className="relative">
+                          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
                           <Input
-                            id="cantidad"
-                            type="number"
-                            min="1"
-                            value={cantidad}
-                            onChange={(e) => setCantidad(Number.parseInt(e.target.value) || 1)}
-                            className="border-[#A5B4FC]"
+                            placeholder="Buscar producto..."
+                            value={searchProducto}
+                            onChange={(e) => setSearchProducto(e.target.value)}
+                            className="pl-10 border-[#A5B4FC]"
                           />
                         </div>
-                      )}
-                    </div>
 
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                        Cancelar
-                      </Button>
-                      <Button
-                        onClick={agregarProducto}
-                        disabled={!productoSeleccionado}
-                        className="bg-[#3B82F6] hover:bg-[#1E3A8A]"
-                      >
-                        Agregar
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                        <div className="max-h-60 overflow-y-auto border rounded-md">
+                          <Table>
+                            <TableHeader className="bg-[#F3F4F6] sticky top-0">
+                              <TableRow>
+                                <TableHead className="text-[#111827] w-[100px]">ID</TableHead>
+                                <TableHead className="text-[#111827]">Nombre</TableHead>
+                                <TableHead className="text-[#111827] text-right">Precio</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {productosFiltrados.length > 0 ? (
+                                productosFiltrados.map((prod) => (
+                                  <TableRow
+                                    key={prod.IdProducto}
+                                    className={`cursor-pointer hover:bg-[#F3F4F6] ${
+                                      productoSeleccionado?.IdProducto === prod.IdProducto
+                                        ? "bg-[#A5B4FC]/20"
+                                        : ""
+                                    }`}
+                                    onClick={() => setProductoSeleccionado(prod)}
+                                  >
+                                    <TableCell>{prod.IdProducto}</TableCell>
+                                    <TableCell>{prod.NombreProducto}</TableCell>
+                                    <TableCell className="text-right">
+                                      ${getPrecioProducto(prod).toFixed(2)}
+                                    </TableCell>
+                                  </TableRow>
+                                ))
+                              ) : (
+                                <TableRow>
+                                  <TableCell colSpan={3} className="h-24 text-center">
+                                    No se encontraron productos.
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </TableBody>
+                          </Table>
+                        </div>
+
+                        {productoSeleccionado && (
+                          <div className="space-y-2">
+                            <Label htmlFor="cantidad">Cantidad</Label>
+                            <Input
+                              id="cantidad"
+                              type="number"
+                              min="1"
+                              value={cantidad}
+                              onChange={(e) =>
+                                setCantidad(Number.parseInt(e.target.value) || 1)
+                              }
+                              className="border-[#A5B4FC]"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                          Cancelar
+                        </Button>
+                        <Button
+                          onClick={agregarProducto}
+                          disabled={!productoSeleccionado}
+                          className="bg-[#3B82F6] hover:bg-[#1E3A8A]"
+                        >
+                          Agregar
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </div>
 
               <div className="rounded-md border border-[#A5B4FC] overflow-hidden">
@@ -429,6 +533,50 @@ function SalesCreate() {
                   </TableBody>
                 </Table>
               </div>
+
+              {/* Nuevo listado inline de productos para agregar a la venta */}
+              {showProductList && (
+                <div className="mt-4">
+                  <div className="max-h-60 overflow-y-auto border rounded-md">
+                    <Table>
+                      <TableHeader className="bg-[#F3F4F6] sticky top-0">
+                        <TableRow>
+                          <TableHead className="text-[#111827] w-[100px]">ID</TableHead>
+                          <TableHead className="text-[#111827]">Nombre</TableHead>
+                          <TableHead className="text-[#111827] text-right">Precio</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {productos.length > 0 ? (
+                          productos.map((prod) => (
+                            <TableRow
+                              key={prod.IdProducto}
+                              className="cursor-pointer hover:bg-[#F3F4F6]"
+                              onClick={() => {
+                                setProductoSeleccionado(prod);
+                                setShowProductList(false);
+                              }}
+                            >
+                              <TableCell>{prod.IdProducto}</TableCell>
+                              <TableCell>{prod.NombreProducto || prod.Nombre}</TableCell>
+                              <TableCell className="text-right">
+                                ${getPrecioProducto(prod).toFixed(2)}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={3} className="h-24 text-center">
+                              No se encontraron productos.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
         </CardContent>
@@ -475,7 +623,7 @@ function SalesCreate() {
           className="bg-[#3B82F6] hover:bg-[#1E3A8A]"
           disabled={detalles.length === 0 || !clienteSeleccionado}
         >
-          Guardar Venta
+          {id ? "Actualizar Venta" : "Guardar Venta"}
         </Button>
       </div>
     </div>
